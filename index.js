@@ -386,7 +386,21 @@ client.on("messageCreate", async (message) => {
 function sprayHourly() {
   setTimeout(async function () {
     const channel = client.channels.cache.get(ChannelID.GeneralID);
-    channel.send("Channel bau \n Psssssttt... 🌼");
+
+    // 45% chance to execute handleFwmcMessage
+    const randomDecision = Math.random() < 0.45;
+
+    if (randomDecision) {
+      // Create a mock message object for handleFwmcMessage
+      const mockMessage = {
+        guild: client.guilds.cache.first(),
+        reply: (options) => channel.send(options),
+        author: { bot: false },
+      };
+      await handleFwmcMessage(mockMessage);
+    } else {
+      channel.send("Channel bau \n Psssssttt... 🌼");
+    }
 
     if (!avatarRateLimited && currentAvatar !== "default") {
       try {
@@ -398,7 +412,7 @@ function sprayHourly() {
     }
 
     sprayHourly();
-  }, 43200000);
+  }, 43200000); // 12 hours
 }
 
 sprayHourly();
