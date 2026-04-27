@@ -277,7 +277,7 @@ client.login(process.env.TOKEN);
 client.on("warn", (info) => console.log(info));
 client.on("error", console.error);
 client.on("ready", () => {
-  const channel = client.channels.cache.get(ChannelID.TestChannelID);
+  const channel = client.channels.cache.get(ChannelID.BotChannelID);
   console.log(`${client.user.username} ready!`);
   channel.send("Pengharum Ruangan Online🌼🌼");
 });
@@ -385,7 +385,7 @@ client.on("messageCreate", async (message) => {
 //Spray the bot every 12 hour
 function sprayHourly() {
   setTimeout(async function () {
-    const channel = client.channels.cache.get(ChannelID.TestChannelID);
+    const channel = client.channels.cache.get(ChannelID.GeneralID);
     channel.send("Channel bau \n Psssssttt... 🌼");
 
     if (!avatarRateLimited && currentAvatar !== "default") {
