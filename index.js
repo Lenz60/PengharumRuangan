@@ -1,6 +1,15 @@
-const { Client, GatewayIntentBits } = require("discord.js");
+const { Client, GatewayIntentBits, REST, Routes } = require("discord.js");
 const ChannelID = require("./ChannelID");
 require("dotenv").config();
+const assets = require("./PathAssets");
+const cron = require("node-cron");
+const fs = require("fs");
+
+const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
+
+let usedFwmcAssets = [];
+let avatarRateLimited = false;
+let currentAvatar = "default"; // "default" or "fwmc"
 
 const client = new Client({
   disableMentions: "everyone",
@@ -12,12 +21,263 @@ const client = new Client({
   ],
 });
 
+// Helper to convert image to base64 for avatar setting
+function imageToBase64(filePath) {
+  const ext = filePath.split(".").pop().toLowerCase();
+  const mimeMap = {
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    png: "image/png",
+    gif: "image/gif",
+  };
+  const mime = mimeMap[ext] || "image/jpeg";
+  const data = fs.readFileSync(filePath).toString("base64");
+  return `data:${mime};base64,${data}`;
+}
+
+function getRandomUnusedVideo() {
+  const fwmcVideos = [
+    assets.videos.bauRun,
+    assets.videos.bauSync,
+    assets.videos.bauThrow,
+    assets.videos.baubau,
+    assets.videos.fubuBau,
+  ];
+
+  const fwmcGifs = [
+    assets.gifs.youreSoBauBau,
+    assets.gifs.fwmcZoom,
+    assets.gifs.fww,
+    assets.gifs.fwwSpelling,
+    assets.gifs.fwwMid,
+    assets.gifs.fwwBackseat,
+    assets.gifs.fwwXIV,
+    assets.gifs.sybau,
+    assets.gifs.fwmcDog,
+    assets.gifs.fwmcJerma,
+    assets.gifs.mccoe,
+    assets.gifs.mccoe2,
+    assets.gifs.mccoe3,
+    assets.gifs.mccoe4,
+    assets.gifs.mccoe5,
+    assets.gifs.mccoe6,
+    assets.gifs.mccoeGrinder,
+    assets.gifs.mccoeTomorrow,
+  ];
+  const fwmcImages = [assets.images.bauWoe];
+
+  const allFwmcAssets = [...fwmcVideos, ...fwmcGifs, ...fwmcImages];
+
+  let availableAssets = allFwmcAssets.filter(
+    (asset) => !usedFwmcAssets.includes(asset)
+  );
+
+  if (availableAssets.length === 0) {
+    console.log("All assets have been used, resetting...");
+    usedFwmcAssets = [];
+    availableAssets = allFwmcAssets;
+  }
+
+  const randomIndex = Math.floor(Math.random() * availableAssets.length);
+  const selectedAsset = availableAssets[randomIndex];
+
+  usedFwmcAssets.push(selectedAsset);
+
+  console.log(`Selected asset: ${selectedAsset}`);
+  console.log(`Used assets: ${usedFwmcAssets.length}/${allFwmcAssets.length}`);
+
+  return selectedAsset;
+}
+
+// ============================================================
+// AVATAR HELPERS
+// ============================================================
+async function setFwmcAvatar() {
+  await rest.patch(Routes.user(), {
+    body: { avatar: imageToBase64(assets.images.haeh) },
+  });
+  currentAvatar = "fwmc";
+}
+
+async function setDefaultAvatar() {
+  await rest.patch(Routes.user(), {
+    body: { avatar: imageToBase64(assets.images.defaultPFP) },
+  });
+  currentAvatar = "default";
+}
+
+async function scheduleAvatarRestore() {
+  setTimeout(async () => {
+    try {
+      await setDefaultAvatar();
+      console.log("Avatar restored after rate limit cooldown.");
+    } catch (error) {
+      console.error("Still rate limited after 2 hours:", error);
+    } finally {
+      avatarRateLimited = false;
+    }
+  }, 2 * 60 * 60 * 1000);
+}
+
+// ============================================================
+// NICKNAME HELPERS
+// ============================================================
+async function setFwmcNickname(guild) {
+  const botMember = guild.members.cache.get(client.user.id);
+  if (botMember) await botMember.setNickname("FuwaMoco Bot");
+}
+
+async function revertNickname(guild) {
+  const botMember = guild.members.cache.get(client.user.id);
+  if (botMember) await botMember.setNickname("Pengharum Ruangan");
+}
+
+// ============================================================
+// RATE LIMIT HANDLER
+// ============================================================
+function getRateLimitMessage() {
+  return currentAvatar === "default"
+    ? "It's your fault, Mococo is now in limbo 🌌"
+    : "It's your fault, Pengharum Ruangan is now in Backroom 🥀";
+}
+
+function getRateLimitStatus(hideIfDefault = false) {
+  if (!avatarRateLimited) return null;
+  if (hideIfDefault && currentAvatar === "default") return null;
+  return currentAvatar === "default"
+    ? "⚠️ Mococo is still in limbo 🌌"
+    : "⚠️ Pengharum Ruangan is still in Backroom 🥀";
+}
+async function handleAvatarRateLimit(message, asset) {
+  console.log(`Avatar rate limited! Current avatar state: ${currentAvatar}`);
+  avatarRateLimited = true;
+
+  try {
+    await revertNickname(message.guild);
+  } catch (error) {
+    console.error("Failed to revert nickname:", error);
+  }
+
+  // Only send reply if there's something to send
+  const replyPayload = asset
+    ? { content: getRateLimitMessage(), files: [asset] }
+    : { content: getRateLimitMessage() };
+
+  await message.reply(replyPayload).catch(console.error);
+
+  // scheduleAvatarRestore();
+}
+
+// ============================================================
+// REVERT AFTER SEND (nickname + avatar after 2s)
+// ============================================================
+async function revertAfterDelay(guild, message) {
+  setTimeout(async () => {
+    try {
+      await revertNickname(guild);
+      if (!avatarRateLimited) await setDefaultAvatar();
+    } catch (error) {
+      const isAvatarRateLimit =
+        error.code === 50035 && error.rawError?.errors?.avatar;
+
+      if (isAvatarRateLimit) {
+        await handleAvatarRateLimit(message, null);
+      } else {
+        console.error("Failed to revert:", error);
+      }
+    }
+  }, 2000);
+}
+
+// ============================================================
+// MAIN FWMC HANDLER
+// ============================================================
+async function handleFwmcMessage(message) {
+  if (!message.guild) return;
+
+  const asset = getRandomUnusedVideo();
+  const statusMessage = getRateLimitStatus(); // check status before anything
+
+  try {
+    await setFwmcNickname(message.guild);
+    if (!avatarRateLimited) await setFwmcAvatar();
+
+    // Always include rate limit status in the reply if it exists
+    await message.reply({
+      content: statusMessage ?? undefined,
+      files: [asset],
+    });
+
+    revertAfterDelay(message.guild, message);
+  } catch (error) {
+    const isAvatarRateLimit =
+      error.code === 50035 && error.rawError?.errors?.avatar;
+
+    if (isAvatarRateLimit) {
+      await handleAvatarRateLimit(message, asset);
+    } else {
+      console.error("Failed to change nickname or avatar:", error);
+      message.reply({ files: [asset] }).catch(console.error);
+    }
+  }
+}
+
+// ============================================================
+// BAU SPRAY MESSAGE HANDLER
+// ============================================================
+function getSprayMessage(randomNumber) {
+  if (currentAvatar === "fwmc") return "H-hoeh?!.. Psssssttt... 🌼";
+  if (randomNumber == 5)
+    return `udah ${randomNumber} nyemprot,\n refill dulu bentar... 😵`;
+  return "Psssssttt... 🌼";
+}
+
+// ============================================================
+// BAU HANDLER
+// ============================================================
+async function handleBauMessage(message, content, regexListBau, list) {
+  const statusMessage = getRateLimitStatus(true);
+
+  if (matchInArray(content, regexListBau)) {
+    await message.reply({
+      content: `${content} \n\nPsssssttt... 🌼\nPsssssttt... 🌼\nPsssssttt... 🌼\nPsssssttt... 🌼\nPsssssttt... 🌼${
+        statusMessage ? `\n\n${statusMessage}` : ""
+      }`,
+    });
+    return;
+  }
+
+  // If avatar is stuck as fwmc, Pengharum Ruangan is in backroom — confused spray
+  const randomNumber = Math.floor(Math.random() * 5);
+  const sprayMessage = getSprayMessage(randomNumber);
+
+  try {
+    if (!avatarRateLimited) await setDefaultAvatar();
+
+    await message.reply({
+      content: statusMessage
+        ? `${sprayMessage}\n\n${statusMessage}`
+        : sprayMessage,
+    });
+  } catch (error) {
+    const isAvatarRateLimit =
+      error.code === 50035 && error.rawError?.errors?.avatar;
+
+    if (isAvatarRateLimit) {
+      await handleAvatarRateLimit(message, null);
+    } else {
+      console.error("Failed to set default avatar on bau:", error);
+      message.reply({ content: sprayMessage }).catch(console.error);
+    }
+  }
+}
+
 client.login(process.env.TOKEN);
 
 client.on("warn", (info) => console.log(info));
 client.on("error", console.error);
 client.on("ready", () => {
-  const channel = client.channels.cache.get(ChannelID.BotChannelID);
+  const channel = client.channels.cache.get(ChannelID.TestChannelID);
   console.log(`${client.user.username} ready!`);
   channel.send("Pengharum Ruangan Online🌼🌼");
 });
@@ -71,6 +331,13 @@ client.on("messageCreate", async (message) => {
     return removed1.toString().split("/").join("");
   });
 
+  /// FUWAMOCO ZONE ///
+  const fwmcRegex = /(^| |\"|\')baubau( |$|\.|\,|!|\?|\:|\;|\"|\')/i;
+  if (fwmcRegex.test(content)) {
+    await handleFwmcMessage(message);
+    return;
+  }
+
   const d20 = /(^| |\"|\')rd20( |$|\.|\,|!|\?|\:|\;|\"|\')/i;
   if (d20.test(content) || content.includes("796773828059201616")) {
     message.reply(`Roll 1d20 : ${getRandomInt(20)}`);
@@ -109,33 +376,29 @@ client.on("messageCreate", async (message) => {
     return;
   }
 
-  if (bauRegex.test(content)) {
-    if (matchInArray(content, regexListBau)) {
-      // Easter egg for Arka Zelaphiel.
-      message.reply(
-        `${content}.\n\nPsssssttt... 🌼\nPsssssttt... 🌼\nPsssssttt... 🌼\nPsssssttt... 🌼\nPsssssttt... 🌼`
-      );
-      return;
-    }
-
-    const randomNumber = Math.floor(Math.random() * 5);
-    if (randomNumber == 5) {
-      message.reply(
-        `udah ${randomNumber} nyemprot,\n refill dulu bentar... 😵`
-      );
-    } else {
-      message.reply("Psssssttt... 🌼");
-    }
+  if (bauRegex.test(content) && !listbauRegex.test(content)) {
+    await handleBauMessage(message, content, regexListBau, list);
+    return;
   }
 });
 
-//Spray the bot every one hour
+//Spray the bot every 12 hour
 function sprayHourly() {
-  setTimeout(function () {
-    const channel = client.channels.cache.get(ChannelID.GeneralID);
+  setTimeout(async function () {
+    const channel = client.channels.cache.get(ChannelID.TestChannelID);
     channel.send("Channel bau \n Psssssttt... 🌼");
+
+    if (!avatarRateLimited && currentAvatar !== "default") {
+      try {
+        await setDefaultAvatar();
+        console.log("Avatar silently restored during hourly spray.");
+      } catch (error) {
+        console.error("Failed to restore avatar during hourly spray:", error);
+      }
+    }
+
     sprayHourly();
-  }, 18000000);
+  }, 43200000);
 }
 
 sprayHourly();
