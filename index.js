@@ -69,7 +69,7 @@ function getRandomUnusedVideo() {
   const allFwmcAssets = [...fwmcVideos, ...fwmcGifs, ...fwmcImages];
 
   let availableAssets = allFwmcAssets.filter(
-    (asset) => !usedFwmcAssets.includes(asset)
+    (asset) => !usedFwmcAssets.includes(asset),
   );
 
   if (availableAssets.length === 0) {
@@ -107,16 +107,19 @@ async function setDefaultAvatar() {
 }
 
 async function scheduleAvatarRestore() {
-  setTimeout(async () => {
-    try {
-      await setDefaultAvatar();
-      console.log("Avatar restored after rate limit cooldown.");
-    } catch (error) {
-      console.error("Still rate limited after 2 hours:", error);
-    } finally {
-      avatarRateLimited = false;
-    }
-  }, 2 * 60 * 60 * 1000);
+  setTimeout(
+    async () => {
+      try {
+        await setDefaultAvatar();
+        console.log("Avatar restored after rate limit cooldown.");
+      } catch (error) {
+        console.error("Still rate limited after 2 hours:", error);
+      } finally {
+        avatarRateLimited = false;
+      }
+    },
+    2 * 60 * 60 * 1000,
+  );
 }
 
 // ============================================================
@@ -244,6 +247,19 @@ async function handleBauMessage(message, content, regexListBau, list) {
         statusMessage ? `\n\n${statusMessage}` : ""
       }`,
     });
+    return;
+  }
+
+  // 50% chance to send stayBau image instead of spray
+  const sendStayBau = Math.random() < 0.5;
+
+  if (sendStayBau) {
+    await message
+      .reply({
+        content: statusMessage ?? undefined,
+        files: [assets.images.stayBau],
+      })
+      .catch(console.error);
     return;
   }
 
