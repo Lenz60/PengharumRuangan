@@ -3,6 +3,8 @@ const path = require("path");
 const images = {
   bauWoe: path.join(__dirname, "assets", "images", "bauWoe.jpg"),
   haeh: path.join(__dirname, "assets", "images", "haeh.jpg"),
+  bauTherefore: path.join(__dirname, "assets", "images", "bauTherefore.jpg"),
+  bauThought: path.join(__dirname, "assets", "images", "bauThought.jpg"),
   defaultPFP: path.join(__dirname, "assets", "images", "defaultPFP.png"),
 };
 
@@ -12,6 +14,11 @@ const videos = {
   baubau: path.join(__dirname, "assets", "videos", "baubau.mp4"),
   bauSync: path.join(__dirname, "assets", "videos", "bauSync.mp4"),
   fubuBau: path.join(__dirname, "assets", "videos", "fubuBau.mp4"),
+  bauMocoChan: path.join(__dirname, "assets", "videos", "bauMocoChan.mp4"),
+  bauMocojyan: path.join(__dirname, "assets", "videos", "bauMocojyan.mp4"),
+  bauOMG: path.join(__dirname, "assets", "videos", "bauOMG.mp4"),
+  bauStuka: path.join(__dirname, "assets", "videos", "bauStuka.mp4"),
+  bauA: path.join(__dirname, "assets", "videos", "bauA.mp4"),
 };
 
 const gifs = {
