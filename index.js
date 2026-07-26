@@ -262,6 +262,19 @@ async function handleBauMessage(message, content, regexListBau, list) {
     return;
   }
 
+  // 50% chance to send stayBau image instead of spray
+  const sendStayBau = Math.random() < 0.5;
+
+  if (sendStayBau) {
+    await message
+      .reply({
+        content: statusMessage ?? undefined,
+        files: [assets.images.stayBau],
+      })
+      .catch(console.error);
+    return;
+  }
+
   // If avatar is stuck as fwmc, Pengharum Ruangan is in backroom — confused spray
   const randomNumber = Math.floor(Math.random() * 5);
   const sprayMessage = getSprayMessage(randomNumber);

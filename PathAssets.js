@@ -6,6 +6,7 @@ const images = {
   bauTherefore: path.join(__dirname, "assets", "images", "bauTherefore.jpg"),
   bauThought: path.join(__dirname, "assets", "images", "bauThought.jpg"),
   defaultPFP: path.join(__dirname, "assets", "images", "defaultPFP.png"),
+  stayBau: path.join(__dirname, "assets", "images", "stayBau.png"),
 };
 
 const videos = {
