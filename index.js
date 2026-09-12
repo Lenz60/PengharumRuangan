@@ -6,8 +6,15 @@ const cron = require("node-cron");
 const fs = require("fs");
 let mccRate = 45;
 let sprayCooldown = 12; // 12 hours in milliseconds
-const randMcc = Math.random() * 100;
-const isMcc = randMcc < mccRate;
+let randMcc = Math.random() * 100;
+let isMcc = randMcc < mccRate;
+
+// Re-roll the Mococo chance — call this whenever a fresh decision is needed
+function rollMcc() {
+  randMcc = Math.random() * 100;
+  isMcc = randMcc < mccRate;
+  return isMcc;
+}
 
 const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
 
@@ -266,6 +273,7 @@ function sendMccReport(context) {
 // ============================================================
 async function handleBauMessage(message, content, regexListBau, list) {
   const statusMessage = getRateLimitStatus(true);
+  rollMcc(); // fresh roll each time bau is triggered
   sendMccReport("bau");
 
   if (matchInArray(content, regexListBau)) {
@@ -567,6 +575,7 @@ function sprayHourly() {
 
       // 45% chance to execute handleFwmcMessage
       // const randomDecision = Math.random() < 0.45;
+      rollMcc(); // fresh roll each spray cycle
       sendMccReport("sprayHourly");
       if (isMcc) {
         // Create a mock message object for handleFwmcMessage
