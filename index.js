@@ -327,7 +327,7 @@ client.login(process.env.TOKEN);
 client.on("warn", (info) => console.log(info));
 client.on("error", console.error);
 client.on("ready", () => {
-  const channel = client.channels.cache.get(ChannelID.TestChannelID);
+  const channel = client.channels.cache.get(ChannelID.BotChannelID);
   console.log(`${client.user.username} ready!`);
   channel.send("Pengharum Ruangan Online🌼🌼");
 });
@@ -563,7 +563,7 @@ function sprayHourly() {
   console.log(`mccRate: ${mccRate}%`);
   setTimeout(
     async function () {
-      const channel = client.channels.cache.get(ChannelID.TestChannelID);
+      const channel = client.channels.cache.get(ChannelID.GeneralID);
 
       // 45% chance to execute handleFwmcMessage
       // const randomDecision = Math.random() < 0.45;
