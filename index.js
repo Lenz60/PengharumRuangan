@@ -269,6 +269,17 @@ function sendMccReport(context) {
 }
 
 // ============================================================
+// STAYBAU REPORT (send stayBau dice info to TestChannelID)
+// ============================================================
+function sendStayBauReport(context, sendStayBau) {
+  const testChannel = client.channels.cache.get(ChannelID.TestChannelID);
+  if (!testChannel) return;
+  testChannel
+    .send(`[${context}] stayBau roll: 50% chance → sendStayBau: ${sendStayBau}`)
+    .catch(console.error);
+}
+
+// ============================================================
 // BAU HANDLER
 // ============================================================
 async function handleBauMessage(message, content, regexListBau, list) {
@@ -286,7 +297,8 @@ async function handleBauMessage(message, content, regexListBau, list) {
   }
 
   // 50% chance to send stayBau image instead of spray
-  const sendStayBau = Math.random() < 0.5;
+  const sendStayBau = Math.random() < 0.4;
+  sendStayBauReport("bau", sendStayBau);
 
   if (sendStayBau) {
     await message
