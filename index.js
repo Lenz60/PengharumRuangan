@@ -6,7 +6,8 @@ const cron = require("node-cron");
 const fs = require("fs");
 let mccRate = 45;
 let sprayCooldown = 12; // 12 hours in milliseconds
-const isMcc = Math.random() * 100 < mccRate;
+const randMcc = Math.random() * 100;
+const isMcc = randMcc < mccRate;
 
 const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
 
@@ -201,7 +202,7 @@ async function revertAfterDelay(guild, message) {
         console.error("Failed to revert:", error);
       }
     }
-  }, 2000);
+  }, 10000);
 }
 
 // ============================================================
@@ -248,10 +249,24 @@ function getSprayMessage(randomNumber) {
 }
 
 // ============================================================
+// MCC REPORT (send randMcc roll info to TestChannelID)
+// ============================================================
+function sendMccReport(context) {
+  const testChannel = client.channels.cache.get(ChannelID.TestChannelID);
+  if (!testChannel) return;
+  testChannel
+    .send(
+      `[${context}] randMcc: ${randMcc.toFixed(2)} / mccRate: ${mccRate}% → isMcc: ${isMcc}`,
+    )
+    .catch(console.error);
+}
+
+// ============================================================
 // BAU HANDLER
 // ============================================================
 async function handleBauMessage(message, content, regexListBau, list) {
   const statusMessage = getRateLimitStatus(true);
+  sendMccReport("bau");
 
   if (matchInArray(content, regexListBau)) {
     await message.reply({
@@ -280,7 +295,13 @@ async function handleBauMessage(message, content, regexListBau, list) {
   const sprayMessage = getSprayMessage(randomNumber);
 
   try {
-    if (!avatarRateLimited) await setDefaultAvatar();
+    // Only probe the avatar endpoint when a restore is actually needed.
+    // If the avatar is already default, skip the API call entirely —
+    // calling it on every bau would itself burn the rate limit.
+    if (currentAvatar !== "default") {
+      await setDefaultAvatar();
+      avatarRateLimited = false; // success → rate limit is over
+    }
 
     await message.reply({
       content: statusMessage
@@ -292,6 +313,7 @@ async function handleBauMessage(message, content, regexListBau, list) {
       error.code === 50035 && error.rawError?.errors?.avatar;
 
     if (isAvatarRateLimit) {
+      avatarRateLimited = true; // still rate limited → keep/set the flag
       await handleAvatarRateLimit(message, null);
     } else {
       console.error("Failed to set default avatar on bau:", error);
@@ -305,7 +327,7 @@ client.login(process.env.TOKEN);
 client.on("warn", (info) => console.log(info));
 client.on("error", console.error);
 client.on("ready", () => {
-  const channel = client.channels.cache.get(ChannelID.BotChannelID);
+  const channel = client.channels.cache.get(ChannelID.TestChannelID);
   console.log(`${client.user.username} ready!`);
   channel.send("Pengharum Ruangan Online🌼🌼");
 });
@@ -337,6 +359,10 @@ function getBauRegexHelp() {
     {
       trigger: "bauWhen",
       usage: "Shows the current Pengharum Ruangan cooldown.",
+    },
+    {
+      trigger: "cpPengharum",
+      usage: "Change photo profile to pengharum ruangan",
     },
     {
       trigger: "changeBau <0-24>",
@@ -371,6 +397,24 @@ client.on("messageCreate", async (message) => {
     .join("\n");
 
   await message.reply(`Detected regex and usage:\n${helpText}`);
+});
+
+client.on("messageCreate", async (message) => {
+  if (message.author.bot) return;
+
+  const content = message.content;
+  if (!/^\/?cpPengharum$/i.test(content)) return;
+  await message.reply(`Changing Profile picture back to Pengharum Ruangan...`);
+
+  try {
+    await setDefaultAvatar();
+    avatarRateLimited = false; // Reset rate limit flag since we successfully changed the avatar
+  } catch (error) {
+    console.error("Error changing avatar:", error);
+    await message.reply(
+      `Failed to change avatar. Error: ${error.message || error}`,
+    );
+  }
 });
 
 client.on("messageCreate", async (message) => {
@@ -519,10 +563,11 @@ function sprayHourly() {
   console.log(`mccRate: ${mccRate}%`);
   setTimeout(
     async function () {
-      const channel = client.channels.cache.get(ChannelID.GeneralID);
+      const channel = client.channels.cache.get(ChannelID.TestChannelID);
 
       // 45% chance to execute handleFwmcMessage
       // const randomDecision = Math.random() < 0.45;
+      sendMccReport("sprayHourly");
       if (isMcc) {
         // Create a mock message object for handleFwmcMessage
         const mockMessage = {
@@ -532,7 +577,7 @@ function sprayHourly() {
         };
         await handleFwmcMessage(mockMessage);
       } else {
-        channel.send("Channel bau \n Psssssttt... 🌼");
+        channel.send("Channel bau \n Psssssttt... 🌼 \n ");
       }
 
       if (!avatarRateLimited && currentAvatar !== "default") {
